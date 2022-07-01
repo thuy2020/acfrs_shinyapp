@@ -22,7 +22,9 @@ options(scipen = 999)
 
 ```{r}
 states <- read_csv("data/states.csv")
+```
 
+```{r}
 #data
 topstates_liabilities <- states %>% arrange(desc(lib_rev_ratio)) %>% slice(1:10)
 bottomstate_liabilities <- states %>% arrange(lib_rev_ratio) %>% slice(1:10)
@@ -317,5 +319,64 @@ fig <-  plot_ly(x = c(0,1, 2), y = c(2, 1, 3), type = 'bar') %>%
 
 saveWidget(fig, "fig.html")
 
+```
+
+
+
+# Data from DB
+
+```{r}
+acfrs <- readRDS("data/data_from_dbsite.RDS")
+
+acfrs %>% select(state, name, category, total_liabilities, bonds_outstanding, net_pension_liability, compensated_absences, revenues) %>% 
+  rename("Total Liabilities" = total_liabilities, "Bond Oustanding" = bonds_outstanding, 
+         "Net Pension Liability" = net_pension_liability, "Compensated Absences" = compensated_absences, 
+         "Revenues" = revenues) %>% 
+  
+  pivot_longer(cols = 4:8,
+               names_to = "indicator",
+               values_to = "value") %>% 
+  filter(name == "State of Arizona") -> d_barchart
+
+
+means_generalpurpose <- tibble(acfrs %>% filter(category == "General Purpose") %>% 
+  summarise(mean(total_liabilities), 
+            mean(bonds_outstanding), 
+            mean(net_pension_liability), 
+            mean(compensated_absences), 
+            mean(revenues)) 
+  ) %>% 
+  pivot_longer(cols = 1:5, 
+               names_to = "indicator",
+               values_to = "value"
+               ) 
+
+color <- brewer.pal(5, "Set2")
+
+means_generalpurpose_chart <- means_generalpurpose %>% 
+  ggplot(aes(indicator, value)) +
+  geom_col(fill = color) +
+  scale_y_continuous(labels = scales::dollar_format()) +
+  theme_minimal() +
+  labs(title = "Average Values in General Purpose Category",
+    x = "Indicator", 
+    y = "Value"
+  ) +
+  theme(axis.text.x = element_text(hjust = 1, angle = 30))
+```
+
+```{r}
+  
+  d_barchart %>% select(indicator, value) %>% 
+  ggplot(aes(indicator, value)) +
+  geom_col(fill = color) +
+  scale_y_continuous(labels = scales::dollar_format()) +
+  theme_minimal() +
+  labs(
+    x = "Indicator", 
+    y = "Value"
+  ) +
+  theme(axis.text.x = element_text(hjust = 1, angle = 30)) 
+ 
 ```
 

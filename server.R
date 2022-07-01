@@ -14,7 +14,7 @@ library(plotly)
 library(shiny)
 
 options(scipen = 999)
-
+acfrs <- readRDS("data/data_from_dbsite.RDS") %>% select(-c(census_id, id, year))
 states <- read_csv("data/states.csv")
 counties <- read_csv("data/counties_ranking.csv")
 cities <- read_csv("data/cities_ranking.csv")
@@ -27,34 +27,24 @@ counties %>%
 
 function(input, output, session) {
   
-  output$states <- renderDT({
-    states %>%
-      arrange(desc(lib_rev_ratio)) %>% 
+  output$acfrs <- renderDT({
+    acfrs %>%
       datatable(rownames = input$show_rownames,
-                extensions = "Buttons",
-                option = list(
-                  button = c("excel", "pdf"),
-                  dom = "Bftip"
-                ))
+                extensions = c("Buttons", "Responsive"),
+                option = list(button = c("excel", "pdf"),dom = "Bftip"))
   })
-  
   
   output$download_data <- downloadHandler(
     filename = function(){
-      paste0(Sys.Date(), "_states.csv")
-    },
+      paste0(Sys.Date(), "_acfrs.csv")},
     content = function(file) {
-      states %>% 
+      acfrs %>% 
         write_csv(file)
-    }
-  )
-
+    })
   
   output$counties <- renderDT({
     counties %>%
       select(-c(FIPS, state_abv)) %>% 
-      
-      arrange(desc(population)) %>%
       datatable(rownames = input$show_rownames,
                 extensions = "Responsive")
   })
@@ -315,7 +305,6 @@ output$all_entities_liab_rev_ratio <- renderPlotly({
     
     theme(axis.text.x  = element_text(color="white"),
           axis.ticks = element_blank(),
-          
           panel.background = element_blank()
     ) 
   
@@ -323,9 +312,17 @@ output$all_entities_liab_rev_ratio <- renderPlotly({
   
 })
 
+# Data tab
+updateSelectInput(session,
+                  "select_entity_type",
+                  choices = unique(acfrs$category))
 
-updateSearchInput(session, 
-                  "select_entity",
-                  choices = unique(states$State))
+# updateSelectInput(session,
+#                   "select_entity",
+#                   choices = NULL)
+# 
+updateSelectInput(session,
+                  "select_indicator",
+                  choices = colnames(acfrs)[7:20])
   
 }

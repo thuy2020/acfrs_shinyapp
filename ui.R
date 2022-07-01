@@ -1,5 +1,6 @@
 library("DT")
 library(shiny)
+library(shinydashboard)
 library(plotly)
 library(shinythemes)
 library(shinyWidgets)
@@ -58,24 +59,27 @@ navbarPage(
   ),
   tabPanel(
     "Data",
+    
     fluidPage(
-      wellPanel(
-        "The table below shows data of states",
-        p("Click the download button below to download the data to your machine")
-      ),
-      selectInput("select_entity",
-                  label = "Choose an entity:",
-                  choices = NULL),
+      wellPanel("View & Download the data to your machine"),
       
-      plotOutput("entity_components"),
+      
+      
+      fluidRow(column(selectInput("select_entity_type", "Select an Entity Type",
+                         choices = NULL), width = 4),
+               column(selectInput("select_entity", "Select an Entity",
+                                  choices = NULL), width = 4),
+              column(selectInput("select_indicator","Select an Indicator",
+                          choices = NULL), width = 4)),
+
+      #plotOutput(""),
       
       downloadButton(
         "download_data",
         "Download data"
       ),
       hr(),
-      DTOutput("states")
-      
+      DTOutput("acfrs")
     )
     
   ),
