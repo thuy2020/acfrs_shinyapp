@@ -25,6 +25,44 @@ states <- read_csv("data/states.csv")
 ```
 
 ```{r}
+state_bubble <- read_csv("data/states.csv") %>% select(state, lib_rev_ratio) %>% 
+    mutate(lib_rev_ratio = round(lib_rev_ratio)) %>% 
+    rename(State = state, `Liability-Renenue Ratio` = lib_rev_ratio) 
+  
+  city_bubble <- read_csv("data/cities.csv") %>% select(state, city, lib_rev_ratio) %>% 
+    mutate(lib_rev_ratio = round(lib_rev_ratio)) %>% 
+    rename(City = city, `Liability-Renenue Ratio` = lib_rev_ratio)
+  
+  county_bubble <- read_csv("data/counties.csv") %>% arrange(desc(population)) %>% slice(1:100) %>% 
+    select(state, name, lib_rev_ratio) %>% 
+    mutate(lib_rev_ratio = round(lib_rev_ratio)) %>% 
+    rename(County = name, `Liability-Renenue Ratio` = lib_rev_ratio) 
+  
+  all_entities_liab_rev_ratio <- ggplotly(state_bubble %>% 
+    ggplot(aes(State, `Liability-Renenue Ratio`)) +
+    geom_point(color = "purple", size = 10, alpha = .2, show.legend = TRUE) +
+    
+    geom_point(aes(City, `Liability-Renenue Ratio`),
+               data = city_bubble, color = "#E7B800", size = 10, alpha = .2) +
+    
+    geom_point(aes(County, `Liability-Renenue Ratio`),
+               data = county_bubble, color = "#00AFBB", size = 10, alpha = .2) +
+    labs(
+      x = "",
+      y = "") +
+    scale_y_continuous(labels = scales::percent_format(suffix = "%", scale = 1)) +
+    
+    theme(axis.text.x  = element_text(color="white"),
+          axis.ticks = element_blank(),
+          panel.background = element_blank()
+        
+    )) 
+  saveRDS(all_entities_liab_rev_ratio, "all_entities_liab_rev_ratio.RDS")
+  #ggplotly(liab_rev_ratio_allentities)
+```
+
+
+```{r}
 #data
 topstates_liabilities <- states %>% arrange(desc(lib_rev_ratio)) %>% slice(1:10)
 bottomstate_liabilities <- states %>% arrange(lib_rev_ratio) %>% slice(1:10)
@@ -75,6 +113,7 @@ states_ranking %>% arrange(revenue)
 #write_csv(states, "states.csv")
 ```
 
+## Map
 ```{r}
 spdf <- geojson_read("data/us_states_hexgrid.geojson",  what = "sp")
 spdf@data = spdf@data %>% mutate(google_name = gsub(" \\(United States\\)", "", google_name))
@@ -323,60 +362,62 @@ saveWidget(fig, "fig.html")
 
 
 
-# Data from DB
+# Data Tab 
+## States
 
 ```{r}
 acfrs <- readRDS("data/data_from_dbsite.RDS")
 
+# All 52 state governments 
 acfrs %>% select(state, name, category, total_liabilities, bonds_outstanding, net_pension_liability, compensated_absences, revenues) %>% 
-  rename("Total Liabilities" = total_liabilities, "Bond Oustanding" = bonds_outstanding, 
+  filter(category == "General Purpose") %>% 
+  filter(str_detect(name, "State of|Commonwealth")) %>% 
+  filter(!str_detect(name, "Yap|Kosrae")) -> state_gov
+
+each_state_gov <- state_gov %>% 
+  filter(name == "State of Arizona") %>% 
+  rename("Total Liabilities" = total_liabilities, 
+         "Bond Oustanding" = bonds_outstanding, 
          "Net Pension Liability" = net_pension_liability, "Compensated Absences" = compensated_absences, 
          "Revenues" = revenues) %>% 
-  
   pivot_longer(cols = 4:8,
                names_to = "indicator",
                values_to = "value") %>% 
-  filter(name == "State of Arizona") -> d_barchart
+  select(-c(state, category))
 
-
-means_generalpurpose <- tibble(acfrs %>% filter(category == "General Purpose") %>% 
-  summarise(mean(total_liabilities), 
-            mean(bonds_outstanding), 
-            mean(net_pension_liability), 
-            mean(compensated_absences), 
-            mean(revenues)) 
-  ) %>% 
+means_state_gov <- state_gov %>% 
+  summarise("Total Liabilities" = mean(total_liabilities), 
+            "Bond Oustanding" = mean(bonds_outstanding), 
+            "Net Pension Liability" = mean(net_pension_liability), 
+            "Compensated Absences" = mean(compensated_absences), 
+            "Revenues" = mean(revenues)) %>%  
   pivot_longer(cols = 1:5, 
                names_to = "indicator",
                values_to = "value"
-               ) 
+               ) %>% 
+  mutate(name = "Mean Values of All State Governements")
 
-color <- brewer.pal(5, "Set2")
-
-means_generalpurpose_chart <- means_generalpurpose %>% 
-  ggplot(aes(indicator, value)) +
-  geom_col(fill = color) +
-  scale_y_continuous(labels = scales::dollar_format()) +
-  theme_minimal() +
-  labs(title = "Average Values in General Purpose Category",
-    x = "Indicator", 
-    y = "Value"
-  ) +
-  theme(axis.text.x = element_text(hjust = 1, angle = 30))
 ```
 
+
 ```{r}
-  
-  d_barchart %>% select(indicator, value) %>% 
-  ggplot(aes(indicator, value)) +
-  geom_col(fill = color) +
+# Demonstrate 1 state, with comparison to mean values of the same type of entity
+ each_state_gov %>% rbind(means_state_gov) %>% 
+
+  ggplot(aes(indicator, value, fill = name)) +
+  geom_bar(stat="identity", position = position_dodge(width = 0.5), alpha = .8) + # overlapping the bars half way
+    
   scale_y_continuous(labels = scales::dollar_format()) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) + #palette="Spectral"
   theme_minimal() +
-  labs(
+  labs(title = "Comparison",
     x = "Indicator", 
     y = "Value"
   ) +
-  theme(axis.text.x = element_text(hjust = 1, angle = 30)) 
+  theme(axis.text.x = element_text(hjust = 1, angle = 20),
+        legend.title = element_blank(),
+        legend.position = c(.3, .8)) -> comparison_state_mean_state_gov
  
+saveRDS(comparison_state_mean_state_gov, "comparison_state_mean_state_gov.RDS")
 ```
 
