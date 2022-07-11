@@ -6,7 +6,7 @@ library(shinythemes)
 library(shinyWidgets)
 library(htmltools)
 library(fresh)
-
+library(markdown)
 navbarPage(
  title = "Government Finance Data Transparency", 
  header = use_theme(
@@ -22,33 +22,62 @@ navbarPage(
    ))),
  ########## Begin - Home
   tabPanel("Home",
+           
            fluidPage(
-             wellPanel("Debt bubbles in 50 states and DC, top 100 counties, and top 100 cities"), 
+             
+             plotOutput("states_ratio_chart", width = "80%"),
+             wellPanel("Debt bubbles in 50 states and DC, top 100 counties, and top 100 cities"),
              plotlyOutput("all_entities_liab_rev_ratio"),
-             plotOutput("top4_cities"),
-             plotlyOutput("revevue_per_cap_50cities_chart"))),
+             wellPanel("Something important about these charts."),
+             fluidRow(
+               column(6, plotOutput("liabilities_by_gov_cat_pie")),
+               column(6, plotOutput("liabilities_by_type_pie"))
+             )
+             )),
   
   ########## Begin - Analysis
   navbarMenu("Analysis",
    tabPanel("States",
       fluidPage(
-        plotOutput("states_ratio_chart", width = "80%"), 
-        plotOutput("states_chart"), 
-    )),
-   tabPanel("Cities",
-      fluidPage(
-        plotOutput("cities_chart"),
-        DTOutput("cities")
+        plotOutput("top10_bottom10_states"), 
     )),
    tabPanel("Counties",
             fluidPage(
-              plotOutput("counties_chart"),
-              DTOutput("counties")
+              plotOutput("counties_chart")
+              #DTOutput("counties")
             )),
+   tabPanel("Cities",
+      fluidPage(
+        plotOutput("top100_cities_ratio"),
+        wellPanel("Why do we see what we see above? Some insightful explanation here."),
+        plotlyOutput("revevue_per_cap_50cities_chart"),
+        wellPanel("Description of the chart. 
+                  Why do we see what we see above? Some insightful explanation here."),
+        plotOutput("top4_cities"),
+        plotlyOutput("fisc_cities_less2Mpop_chart"),
+        wellPanel("Description of the chart. 
+                  Why do we see what we see above? Some insightful explanation here.")
+        
+    )),
+
    tabPanel("Districts",
             fluidPage(
               plotOutput("")
-            ))),
+            )),
+   tabPanel("Special Districts",
+            fluidPage(
+              plotOutput("")
+            )),
+   tabPanel("School Districts",
+            fluidPage(
+              plotOutput("")
+            )),
+   tabPanel("Community College Districts",
+            fluidPage(
+              plotOutput("")
+            ))
+   ),
+ 
  #########End - Analysis
  ####### Begin - Data
   navbarMenu("Data",
@@ -57,27 +86,22 @@ navbarPage(
               # Chart part----------------         
             fluidPage(
               titlePanel("Data Exploration"),
-              fluidRow(column(selectInput("select_entity_type", "Select a Type of Government",
-                                          choices = NULL), width = 4),
-              ##
               sidebarLayout(
                 sidebarPanel(
+                  selectInput("select_type_government", "Select a Type of Government", choices = NULL),
                   textInput("name", "Enter Name", "State of Arizona")
                 ),
                 mainPanel(
                   tabsetPanel(
-                    tabPanel("Plot", plotOutput("state_gov_vs_mean_chart")),
-                    tabPanel("Table", DTOutput(""))
+                    tabPanel("Overall Plot"),
+                    tabPanel("Entity Plot", plotOutput("state_gov_vs_mean_chart")),
+                    tabPanel("Data Table", DTOutput(""))
                   )))
-              )),
+              ),
       
             # Data part----------------
           fluidPage(
-            # fluidRow(column(selectInput("select_entity_type", "Select a Type of Government",
-            #                    choices = NULL), width = 4),
-            #         column(selectInput("select_indicator","Select an Indicator",
-            #                     choices = NULL), width = 4)),
-            wellPanel("Search by name of state, entity or category"),
+            wellPanel("Entity Plot: Absolute value of an entity compared to its group type of government."),
             downloadButton(
               "download_data", "Download data"
             ),
@@ -89,7 +113,8 @@ navbarPage(
   tabPanel("Codebook",
            fluidPage(
              tags$h3("Description of each field in the dataset"),
-             p("Category: Type of Government:  General Purpose (e.g.  a state, county, city, town, village or borough), School District, Special District, Community College District or Public Higher Education"))
+             p("Category: Type of Government:  General Purpose (e.g.  a state, county, city, town, village or borough), 
+               School District, Special District, Community College District or Public Higher Education"))
            ),
   ##3
   tabPanel("Methodology",
@@ -105,15 +130,16 @@ navbarPage(
   
   fluidPage(
     tags$h3("What is Government Finance Data Transparency Project?"),
-    p("A very important project!"),
-    
+    includeMarkdown("test.md")
   )),
 
   tabPanel("Q&A",
            
            fluidPage(
              tags$h3("Answers to many of your questions"),
-             p("A legit answer."),
+              tags$h4("How was the data collected?"),
+              p("A legit answer.")
+             
            )  
            )),
   
@@ -124,10 +150,5 @@ collapsible = TRUE
 )
 
 
-# States
-# counties
-# Cities
-# Special Districts
-# School Districts
-# Community College Districts
+
 

@@ -18,13 +18,10 @@ library(rgeos)
 options(scipen = 999)
 ```
 
-# State
+# Home Tab
 
 ```{r}
 states <- read_csv("data/states.csv")
-```
-
-```{r}
 state_bubble <- read_csv("data/states.csv") %>% select(state, lib_rev_ratio) %>% 
     mutate(lib_rev_ratio = round(lib_rev_ratio)) %>% 
     rename(State = state, `Liability-Renenue Ratio` = lib_rev_ratio) 
@@ -61,24 +58,57 @@ state_bubble <- read_csv("data/states.csv") %>% select(state, lib_rev_ratio) %>%
   #ggplotly(liab_rev_ratio_allentities)
 ```
 
+```{r}
+# These numbers are produce in gov_fin project. 
+pie_df <- tribble(~x, ~"label_liabilities_type", ~"value2",
+"1","Bonds and Notes",2554348758195,
+"2","Loans",89172550650,
+"3","Pensions",1671845182218,
+"4","Leases",52877771988,
+"5","Other Post-Employment Benefits",1270269047952,
+"6","All Other",1384275002941
+       ) %>% 
+  select(-x) %>% 
+  mutate(prop = round(value2/sum(value2),3)*100)
 
+liabilities_by_type_pie <- pie(pie_df$value2, labels = paste0(pie_df$label_liabilities_type, "\n ",pie_df$prop,"%"), border = "white",
+    col = brewer.pal(6, "Set2"),
+    main = "Liabilities by Type (Fiscal Year 2020)")
+
+pie_df2 <- tribble(~x, ~"label_state_local", ~"value",
+"1","States",2530983274594,
+"2","Cities and Towns",1239179537814,
+"3","Counties",591455603771,
+"4","Special Districts",1130012238813,
+"5","Education",1175789650248,
+"6","All Other",355368008704
+) %>% select(-x) %>% mutate(prop = round(value/sum(value), 3)*100)
+
+
+pie(pie_df2$value, labels = paste0(pie_df2$label_state_local, "\n ",pie_df2$prop,"%"), border = "white",
+    col = brewer.pal(6, "Pastel1"),
+    main = "Liabilities by Government Category (Fiscal Year 2020)")
+
+```
+
+
+# Analysis Tab
+
+## States
 ```{r}
 #data
 topstates_liabilities <- states %>% arrange(desc(lib_rev_ratio)) %>% slice(1:10)
 bottomstate_liabilities <- states %>% arrange(lib_rev_ratio) %>% slice(1:10)
 
-
-topstates_liabilities %>% rbind(bottomstate_liabilities) %>% 
+top10_bottom10_states <- topstates_liabilities %>% rbind(bottomstate_liabilities) %>% 
   mutate(state = fct_reorder(state, lib_rev_ratio)) %>% 
   
 #layer 1
     ggplot(aes(state, lib_rev_ratio)) +
   geom_segment(aes(x = state, xend = state, y = 0, yend = lib_rev_ratio), color = "grey") +
   geom_point(aes(state, lib_rev_ratio), color = "orange", size = 10) +
-  
 #layer2 
   geom_text(aes(label = round(lib_rev_ratio)), color = "white", size = 4) +
-  
   
   # base
   geom_hline(yintercept = round(mean(states$lib_rev_ratio)),
@@ -88,8 +118,6 @@ topstates_liabilities %>% rbind(bottomstate_liabilities) %>%
     geom_hline(yintercept = round(median(states$lib_rev_ratio)),
              linetype = "dashed", color = "#377da6", size = .3) +
     annotate(geom = "text", x = 1, y = 60, label = paste("Median"), color = "#377da6") +
-  
-  
   #theme
   theme_minimal() +
   labs(
@@ -98,23 +126,22 @@ topstates_liabilities %>% rbind(bottomstate_liabilities) %>%
     title = "States governments with lowest and highest ratios of liabilities to revenue",
     subtitle = "",
     caption = "Note: Mean and median are values of all 50 states and DC")  +
-  theme(axis.text.x = element_text(hjust = 0.5, vjust = 0.5)) 
+  theme(axis.text.x = element_text(hjust = 0.5, vjust = 0.5, angle = 30)) 
 
 
-states %>% 
-  mutate(rank_lib_rev_ratio = rank(-lib_rev_ratio),
-         rank_population = rank(-population),
-         rank_total_liabilities = rank(-total_liabilities),
-         rank_revenue = rank(-revenue)
-         ) %>% 
-  arrange(rank_population) -> states_ranking
+# states %>% 
+#   mutate(rank_lib_rev_ratio = rank(-lib_rev_ratio),
+#          rank_population = rank(-population),
+#          rank_total_liabilities = rank(-total_liabilities),
+#          rank_revenue = rank(-revenue)
+#          ) %>% 
+#   arrange(rank_population) -> states_ranking
 
-states_ranking %>% arrange(revenue)
 #write_csv(states, "states.csv")
 ```
 
-## Map
-```{r}
+
+```{r state map}
 spdf <- geojson_read("data/us_states_hexgrid.geojson",  what = "sp")
 spdf@data = spdf@data %>% mutate(google_name = gsub(" \\(United States\\)", "", google_name))
 
@@ -125,16 +152,15 @@ spdf_fortified <- tidy(spdf, region = "google_name") %>%
 
 # binning
 spdf_fortified$bin <- cut(spdf_fortified$lib_rev_ratio, 
-                           breaks=5, include.lowest = TRUE, labels=c())
+                           breaks=1, include.lowest = TRUE, labels=c())
 
 # Pcolor scale coming from the viridis color palette
 my_palette <- rev(magma(12))[c(-1,-8)]
  
-
 # Calculate the centroid of each hexagon to add the label:
 centers <- cbind.data.frame(data.frame(gCentroid(spdf, byid=TRUE), id=spdf@data$iso3166_2))
 
-ggplot() +
+state_map_ratio <- ggplot() +
   geom_polygon(data = spdf_fortified, aes(fill = bin, x = long, y = lat, group = group) , size=0, alpha=0.9) +
   geom_text(data=centers, aes(x=x, y=y, label=id), color="white", size=3, alpha=0.6) +
   theme_void() +
@@ -155,19 +181,18 @@ ggplot() +
 ```
 
 
-# Counties
+## Counties
 
 ```{r}
 library(viridis)
 #counties
-counties <- read_csv("counties.csv") %>% 
+counties <- read_csv("data/counties.csv") %>% 
   filter(lib_rev_ratio != Inf & state != "Puerto Rico")
 
 counties %>% 
-  arrange(desc(lib_rev_ratio)) %>% slice(1:5) -> d 
+  arrange(desc(lib_rev_ratio)) %>% slice(1:5) -> top_counties 
 
-
-counties %>% 
+counties_chart <- counties %>% 
   filter(lib_rev_ratio != Inf & state != "Puerto Rico") %>% 
   ggplot(aes(population, lib_rev_ratio)) +
   geom_point(aes(size = population), color = "cornflowerblue", alpha = .3) +
@@ -179,10 +204,10 @@ counties %>%
   
   # top ones
   geom_point(aes(population, lib_rev_ratio), 
-             data = d,
+             data = top_counties,
              color = "#a63e37") +
   
-    geom_text_repel(aes(label = name), data = d,
+    geom_text_repel(aes(label = name), data = top_counties,
                     nudge_y = 0.1, nudge_x = 0.1, segment.curvature = -0.1, color = "#a63e37", size = 6) +
   
   
@@ -192,67 +217,145 @@ counties %>%
   labs(
     x = "Population (log scale)",
     y = "Ratio",
-    title = "Ratios of Liabilities to Revenue",
-    subtitle = "Counties", 
+    title = "Ratios of Liabilities to Revenue in County Governements",
+    subtitle = "", 
     caption = "Note: Excluding Puerto Rico") +
   guides(size = FALSE) +
   theme_minimal() 
 
+saveRDS(counties_chart, "counties_chart.RDS")
 
-counties %>% 
-  mutate(rank_lib_rev_ratio = rank(-lib_rev_ratio),
-         rank_population = rank(-population),
-         rank_total_liabilities = rank(-total_liabilities),
-         rank_revenue = rank(-revenue)
-         ) %>% 
-  arrange(rank_population) -> counties_ranking
+# counties %>% 
+#   mutate(rank_lib_rev_ratio = rank(-lib_rev_ratio),
+#          rank_population = rank(-population),
+#          rank_total_liabilities = rank(-total_liabilities),
+#          rank_revenue = rank(-revenue)
+#          ) %>% 
+#   arrange(rank_population) -> counties_ranking
 
-write_csv(counties_ranking, "counties_ranking.csv")
+#write_csv(counties_ranking, "counties_ranking.csv")
 ```
 
 
 
-# Cities 
+## Cities 
+
+```{r}
+fisc_50cities <- rio::import("data/FiSC 50 Cities Final.xlsx", sheet = "Chart Data")
+fisc_50cities_chart <- ggplotly(fisc_50cities %>% 
+               #filter(Population <=2000000) %>% 
+               ggplot(aes(Population, `Total General Revenue (with exclusions) 2020`, text = City)) +
+               geom_point(color = "orange") +
+               
+               geom_point(aes(size =`General Revenue to Per Capita Income Ratio`), color = "#A6D753", alpha = .4) +
+               #scale_x_continuous(breaks = c(600000, 900000, 1200000, 1500000), 
+               #                   labels = c("600K", "900K", "1.2M", "1.5M")) +
+               #scale_y_continuous(breaks = c(3000000000, 6000000000, 9000000000),
+                #                  labels = c( "$3B", "$6B", "$9B"))+
+               guides(size = "none") +
+              scale_x_log10()+
+               
+  
+               labs(title = "Total General Revenue by Population in 50 Cities", 
+                    caption = "Note: Outer cirles represent General Revenue to Per Capita Income Ratio") +
+               
+               theme_minimal() +
+               theme(legend.title = element_blank(),
+                     legend.position = "bottom"))
+saveRDS(fisc_50cities_chart, "fisc_50cities_chart.RDS")
+```
+
+```{r}
+top4_cities <- fisc_50cities %>% 
+    filter(Population > 2000000) %>% 
+    pivot_longer(cols = c(`Per Capita General Revenue excluding Grants`, `General Revenue Adjusted for Cost of Living Index`),
+                 names_to = "Per Capita Revenue", 
+                 values_to = "value") %>% 
+    ggplot(aes(value, City, fill = `Per Capita Revenue`)) +
+    
+    geom_col(width = c(0.8, 0.5)) +
+    scale_fill_manual(values = c("#E17D85", "#8EA0CB")) +
+    
+    geom_vline(xintercept = 6482.832, color = "#8EA0CB") +
+    annotate("text", label = "Mean of 50 cities", x= 7100, y = 1.5, color = "#8EA0CB") +
+    
+    geom_vline(xintercept = 5949.024, color = "#E17D85") +
+    annotate("text", label = "Mean of 50 cities adjusted", x = 6900, y = 2, color = "#E17D85")+
+    
+    labs(title = "Per Capital General Revenue in the 4 Most Populated Cities",
+         y = "", 
+         x = "USD") +
+    theme_minimal() +
+    theme(panel.grid.major.y = element_blank(),
+          legend.title = element_blank(),
+          legend.position = "bottom")
+```
+
+```{r}
+fisc_cities_less2Mpop_chart <- ggplotly(fisc_50cities %>% 
+               filter(Population <=2000000) %>% 
+               ggplot(aes(Population, `Total General Revenue (with exclusions) 2020`, text = City)) +
+               geom_point(color = "orange") +
+               
+               geom_point(aes(size =`General Revenue to Per Capita Income Ratio`), color = "#A6D753", alpha = .4) +
+               scale_x_continuous(breaks = c(600000, 900000, 1200000, 1500000), 
+                                  labels = c("600K", "900K", "1.2M", "1.5M")) +
+               scale_y_continuous(breaks = c(3000000000, 6000000000, 9000000000),
+                                  labels = c( "$3B", "$6B", "$9B"))+
+               guides(size = "none") +
+               scale_x_log10()+
+  
+               labs(title = "Total General Revenue by Population in Cities < 2M Population", 
+                    caption = "Note: Outer cirles represent General Revenue to Per Capita Income Ratio") +
+               
+               theme_minimal() +
+               theme(legend.title = element_blank(),
+                     legend.position = "bottom"))
+```
+
+
+
 ```{r}
 cities <- read_csv("data/cities.csv")
-
 region <- data.frame(state.name, state.region) %>% rename(state = state.name)
 
 top_liab_rev_ratio <- cities %>% arrange(desc(lib_rev_ratio)) %>% slice(1:4)
-
 bottom_liab_ratio <- cities %>% arrange(lib_rev_ratio) %>% slice(1:4)
 
-cities %>% left_join(region) %>% 
+top100_cities_ratio <- cities %>% left_join(region) %>% 
   ggplot(aes(population, lib_rev_ratio)) +
   geom_point(aes(size = population, color = state.region), alpha = .5) +
-  
     # add lines 
   geom_hline(yintercept = round(mean(cities$lib_rev_ratio)),
              linetype = "dashed", color = "gray", size = .5) +
     annotate(geom = "text", x = 6000000, y = 200, label = paste("Mean = ", round(mean(cities$lib_rev_ratio)))) +
-  
   # top 4
   geom_text_repel(aes(label = city),
                   data = top_liab_rev_ratio, 
                   nudge_y = 0.1, nudge_x = 0.15, segment.curvature = -0.1) +
-  
   # bottom 4
   geom_text_repel(aes(label = city), 
                   data = bottom_liab_ratio,
                   nudge_y = 0.1, nudge_x = 0.1, segment.curvature = -0.1) +
-  
-    
   scale_x_log10() +
   scale_fill_viridis(discrete=TRUE, guide=FALSE, option="A") +
   theme_minimal() +
   labs(
     x = "Population (log scale)",
     y = "Ratio",
-    title = "Ratios of Liabilities to Revenue",
-    subtitle = "Top 100 Cities") +
+    title = "Ratios of Liabilities to Revenue in top 100 Cities",
+    subtitle = "") +
  guides(size = FALSE, color = guide_legend("Region")) +
-  theme(legend.position = "bottom") 
+  theme(legend.position = "bottom")
 
+saveRDS(top100_cities_ratio, "top100_cities_ratio.RDS")
+```
+
+
+
+
+
+```{r}
 sd(cities$lib_rev_ratio) # 90.12852
 
 # Components in top 4 cities: Chicago, IL, Houston, TX, Atlanta, GA and Dallas, TX
@@ -279,7 +382,7 @@ write_csv(cities_ranking, "cities_ranking.csv")
 ```
 
 
-
+## Districts
 ```{r}
 districts <- read_csv("districts.csv")
 
@@ -291,31 +394,8 @@ district_ranking <- districts %>% select(-c(lat, lon, id)) %>%
 arrange(rank_lib_rev_ratio)
 
 write_csv(district_ranking, "district_ranking.csv")
-
-districts_ranking %>% arrange(rank_)
 ```
-```{r}
-# School district 1: 3700 teachers https://tableau.ospi.k12.wa.us/t/Public/views/OnePager/OnePager?iframeSizedToWindow=true&:embed=y&:showAppBanner=false&:display_count=no&:showVizHome=no&:toolbar=no&:format=pdf&organizationid=100229
-# state WA: 6173 educators (includes all school-bades staff) https://www.seattleschools.org/wp-content/uploads/sps/district/File/District/Departments/Communications/seattle-public-schools-quick_facts.pdf
 
-# full-time employment Education Total: 138,230
-#STATE AND LOCAL GOVERNMENT: EMPLOYMENT AND PAYROLL DATA
-#https://www.census.gov/data/datasets/2020/econ/apes/annual-apes.html
-
-#Total OPEB liability Seattle K-12: 5983159000
-# Page 36/37 https://leg.wa.gov/osa/additionalservices/Documents/2020_PEBB_OPEB_Report.pdf
-
-(3700/138230) * 5983159000 = 160151113
-
-# PENSION: 295,248,620 (in ACFRs portal)
-
-# Adjusted total liability 
-160151113 + 123970331 + 295248620 = 579370064
-
-# Adjusted liability-revenue Ratio: 
-(579370064/1263718387)*100	= 45.84645
-
-```
 
 ```{r}
 
@@ -337,26 +417,6 @@ employees %>% filter(State == "Washington" & `Type of Government` == "Independen
 
 # Adjusted liability-revenue Ratio: 
 (750855911/1263718387)*100	= 59.4164
-
-```
-
-```{r}
-library(plotly)
-library(htmlwidgets)
-
-fig <-  plot_ly(x = c(0,1, 2), y = c(2, 1, 3), type = 'bar') %>%
-  layout(title = "A Figure Displayed with 'webgl' Renderer",
-         plot_bgcolor='#e5ecf6', 
-         xaxis = list( 
-           zerolinecolor = '#ffff', 
-           zerolinewidth = 2, 
-           gridcolor = 'ffff'), 
-         yaxis = list( 
-           zerolinecolor = '#ffff', 
-           zerolinewidth = 2, 
-           gridcolor = 'ffff'))
-
-saveWidget(fig, "fig.html")
 
 ```
 
